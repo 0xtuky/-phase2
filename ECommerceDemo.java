@@ -212,6 +212,10 @@ public class ECommerceDemo {
             int rid = Integer.parseInt(scanner.nextLine());
             System.out.print("Enter New Rating (1-5): ");
             int rating = Integer.parseInt(scanner.nextLine());
+            if(rating<1 || rating>5){
+                System.out.println("invalid rating");
+                return;
+            }
             System.out.print("Enter New Comment: ");
             String comment = scanner.nextLine();
             if(system.editReview(rid, rating, comment)) saveAllCSVs(); 
