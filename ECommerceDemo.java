@@ -1,5 +1,3 @@
-package project;
-
 import java.util.Scanner;
 
 public class ECommerceDemo {
@@ -13,7 +11,9 @@ public class ECommerceDemo {
         while (true) {
             printMenu();
             try {
-                int choice = Integer.parseInt(scanner.nextLine());
+                String input = scanner.nextLine();
+                if (input.isEmpty()) continue; 
+                int choice = Integer.parseInt(input);
                 handleMenuChoice(choice);
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input. Please enter a number.");
@@ -26,12 +26,8 @@ public class ECommerceDemo {
     private static void printMenu() {
         System.out.println("\n===== E-Commerce System Menu =====");
         System.out.println("--- Data Management ---");
-        System.out.println(" 1. Load All Data from CSVs (Recommended)");
-        System.out.println(" 2. Load Products from CSV (Individual)");
-        System.out.println(" 3. Load Customers from CSV (Individual)");
-        System.out.println(" 4. Load Orders from CSV (Individual)");
-        System.out.println(" 5. Load Reviews from CSV (Individual)");
-        System.out.println("--- Core Operations ---");
+        System.out.println(" 1. Load All Data from CSVs");
+        System.out.println("--- Core Operations (Auto-Saves) ---");
         System.out.println(" 6. Add a New Product");
         System.out.println(" 7. Register a New Customer");
         System.out.println(" 8. Place a New Order");
@@ -52,6 +48,7 @@ public class ECommerceDemo {
         System.out.println(" 21. Get Orders Between Two Dates");
         System.out.println(" 22. Get Common High-Rated Products by Two Customers");
         System.out.println(" 23. Get Out-of-Stock Products");
+        // Option 24 removed as requested
         System.out.println(" 0. Exit");
         System.out.print("Enter your choice: ");
     }
@@ -82,6 +79,7 @@ public class ECommerceDemo {
             case 22: handleGetCommonProducts(); break;
             case 23: handleGetOutOfStockProducts(); break;
             case 0:
+                saveAllCSVs(); // Still auto-saves on exit
                 System.out.println("Exiting system. Goodbye!");
                 System.exit(0);
                 break;
@@ -90,15 +88,23 @@ public class ECommerceDemo {
         }
     }
 
+    // Helper method used by other operations to auto-save
+    private static void saveAllCSVs() {
+        System.out.println(">> Auto-Saving data to CSVs...");
+        system.saveProductsToCSV("products.csv");
+        system.saveCustomersToCSV("customers.csv");
+        system.saveOrdersToCSV("orders.csv");
+        system.saveReviewsToCSV("reviews.csv");
+        System.out.println(">> Save complete.");
+    }
 
     private static void loadAllCSVs() {
         System.out.println("Attempting to load all data from default CSV files...");
-        system.loadProductsFromCSV("prodcuts.csv");
+        system.loadProductsFromCSV("products.csv");
         system.loadCustomersFromCSV("customers.csv");
         system.loadOrdersFromCSV("orders.csv");
         system.loadReviewsFromCSV("reviews.csv");
         System.out.println("Finished loading all CSVs.");
-        System.out.println("Run 'Display' options (13, 14, 15) to see the loaded data.");
     }
 
     private static void loadProductsFromCSV() {
@@ -137,6 +143,7 @@ public class ECommerceDemo {
             int stock = Integer.parseInt(scanner.nextLine());
             
             system.addProduct(new Product(id, name, price, stock));
+            saveAllCSVs(); // AUTO SAVE
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -152,6 +159,7 @@ public class ECommerceDemo {
             String email = scanner.nextLine();
             
             system.registerCustomer(new Customer(id, name, email));
+            saveAllCSVs(); // AUTO SAVE
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -174,9 +182,15 @@ public class ECommerceDemo {
                 System.out.print("Enter a Product ID to add (or 'done' to finish): ");
                 String pid = scanner.nextLine();
                 if (pid.equalsIgnoreCase("done")) break;
-                order.addProduct(Integer.parseInt(pid));
+                try {
+                    order.addProduct(Integer.parseInt(pid));
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid Product ID.");
+                }
             }
-            system.placeOrder(order);
+            if(system.placeOrder(order)) {
+                saveAllCSVs(); // AUTO SAVE
+            }
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -193,7 +207,9 @@ public class ECommerceDemo {
             System.out.print("Enter Comment: ");
             String comment = scanner.nextLine();
             
-            system.addReview(pid, cid, rating, comment);
+            if(system.addReview(pid, cid, rating, comment)) {
+                saveAllCSVs(); // AUTO SAVE
+            }
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -208,7 +224,9 @@ public class ECommerceDemo {
             System.out.print("Enter New Comment: ");
             String comment = scanner.nextLine();
             
-            system.editReview(rid, rating, comment);
+            if(system.editReview(rid, rating, comment)) {
+                saveAllCSVs(); // AUTO SAVE
+            }
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -221,7 +239,9 @@ public class ECommerceDemo {
             System.out.print("Enter New Status (e.g., Shipped, Delivered): ");
             String status = scanner.nextLine();
             
-            system.updateOrderStatus(oid, status);
+            if(system.updateOrderStatus(oid, status)) {
+                saveAllCSVs(); // AUTO SAVE
+            }
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
@@ -231,7 +251,9 @@ public class ECommerceDemo {
         try {
             System.out.print("Enter Order ID to cancel: ");
             int oid = Integer.parseInt(scanner.nextLine());
-            system.cancelOrder(oid);
+            if(system.cancelOrder(oid)) {
+                saveAllCSVs(); // AUTO SAVE
+            }
         } catch (Exception e) {
             System.out.println("Invalid input. " + e.getMessage());
         }
