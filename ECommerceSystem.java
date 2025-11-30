@@ -1,11 +1,21 @@
-
 import java.io.*;
 
+/**
+ * Core system logic for the E-Commerce platform.
+ * * Data Structure Design:
+ * - Products, Customers, and Orders are stored in Binary Search Trees (BST) 
+ * to ensure O(log n) time complexity for search, insertion, and deletion operations.
+ * - Reviews are stored in a Custom Linked List since they are typically accessed 
+ * sequentially per product or customer, making linear traversal O(n) acceptable.
+ */
 public class ECommerceSystem {
     
+    // BSTs for scalable data management
     private BST<Product> products;
     private BST<Customer> customers;
     private BST<Order> orders;
+    
+    // Linked List for secondary data relationships
     private CustomLinkedList<Review> reviews;
     
     public ECommerceSystem() {
@@ -15,25 +25,30 @@ public class ECommerceSystem {
         reviews = new CustomLinkedList<>();
     }
     
-    // ================= LOAD METHODS (ROBUST) ================= //
+    // ================= DATA LOADING (File I/O) ================= //
    
+    /**
+     * Loads products from a CSV file into the BST.
+     * Re-initializes the tree to prevent duplicates upon reload.
+     * Includes error handling to skip specific corrupted lines without crashing.
+     */
     public void loadProductsFromCSV(String filename) {
         products = new BST<>(); 
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
-            String line = br.readLine(); // skip header
+            String line = br.readLine(); // Skip CSV header
             while ((line = br.readLine()) != null) {
-                if (line.trim().isEmpty()) continue; // Skip empty lines
+                if (line.trim().isEmpty()) continue;
                 try {
-                    String[] data = parseCSVLine(line); // Use the safe parser
+                    String[] data = parseCSVLine(line);
                     int productId = Integer.parseInt(data[0]);
-                    String name = data[1].replace("\"", ""); // Remove quotes if present
+                    String name = data[1].replace("\"", ""); // sanitize quotes
                     double price = Double.parseDouble(data[2]);
                     int stock = Integer.parseInt(data[3]);
                     
                     Product product = new Product(productId, name, price, stock);
-                    products.insert(productId, product);
+                    products.insert(productId, product); // O(log n) insertion
                 } catch (Exception e) {
-                    System.out.println("Skipping corrupted product line: " + line + " (" + e.getMessage() + ")");
+                    System.out.println("Skipping corrupted product line: " + line);
                 }
             }
             System.out.println("Products loaded into BST.");
@@ -42,6 +57,9 @@ public class ECommerceSystem {
         }
     }
     
+    /**
+     * Loads customers from CSV into BST.
+     */
     public void loadCustomersFromCSV(String filename) {
         customers = new BST<>(); 
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
@@ -66,6 +84,11 @@ public class ECommerceSystem {
         }
     }
     
+    /**
+     * Loads orders from CSV.
+     * Parses nested product IDs (semicolon separated) and links the order 
+     * to the corresponding Customer object in memory.
+     */
     public void loadOrdersFromCSV(String filename) {
         orders = new BST<>(); 
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
@@ -83,6 +106,7 @@ public class ECommerceSystem {
                     
                     Order order = new Order(orderId, customerId, totalPrice, orderDate, status);
                     
+                    // Parse nested product IDs "101;102;103"
                     if (!productIdsStr.isEmpty()) {
                         String[] productIds = productIdsStr.split(";");
                         for (String pid : productIds) {
@@ -93,6 +117,7 @@ public class ECommerceSystem {
                     }
                     orders.insert(orderId, order);
                     
+                    // Maintain relationship: Add order to Customer's history
                     Customer customer = findCustomerById(customerId);
                     if (customer != null) {
                         customer.addOrder(order);
@@ -107,6 +132,9 @@ public class ECommerceSystem {
         }
     }
     
+    /**
+     * Loads reviews and links them to the specific Product object.
+     */
     public void loadReviewsFromCSV(String filename) {
         reviews.clear(); 
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
@@ -124,6 +152,7 @@ public class ECommerceSystem {
                     Review review = new Review(reviewId, productId, customerId, rating, comment);
                     reviews.add(review); 
                     
+                    // Link review to Product for easier average rating calculation
                     Product product = findProductById(productId);
                     if (product != null) {
                         product.addReview(review);
@@ -138,7 +167,11 @@ public class ECommerceSystem {
         }
     }
     
-    // Robust CSV Parser (Handles "Name, With, Commas")
+    /**
+     * Custom CSV Parser.
+     * Handles cases where data fields (like names or comments) contain commas 
+     * by checking if they are enclosed in quotes.
+     */
     private String[] parseCSVLine(String line) {
         CustomLinkedList<String> result = new CustomLinkedList<>();
         boolean inQuotes = false;
@@ -157,18 +190,21 @@ public class ECommerceSystem {
         return arr;
     }
     
-    // ================= SAVE METHODS (SAFE) ================= //
+    // ================= DATA SAVING ================= //
 
+    /**
+     * Saves Products to CSV.
+     * Uses BST.getAll() which performs an In-Order Traversal to 
+     * ensure data is saved sorted by ID.
+     */
     public void saveProductsToCSV(String filename) {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename))) {
             bw.write("ProductId,Name,Price,Stock");
             bw.newLine();
-            
-            CustomLinkedList<Product> allProducts = products.getAll();
+            CustomLinkedList<Product> allProducts = products.getAll(); // O(n) traversal
             for (int i = 0; i < allProducts.size(); i++) {
                 Product p = allProducts.get(i);
-                // Quote the name to handle commas safely
-                String safeName = "\"" + p.getName() + "\"";
+                String safeName = "\"" + p.getName() + "\""; // Escape quotes
                 String line = p.getProductId() + "," + safeName + "," + p.getPrice() + "," + p.getStock();
                 bw.write(line);
                 bw.newLine();
@@ -181,7 +217,6 @@ public class ECommerceSystem {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename))) {
             bw.write("CustomerId,Name,Email");
             bw.newLine();
-            
             CustomLinkedList<Customer> allCustomers = customers.getAll();
             for (int i = 0; i < allCustomers.size(); i++) {
                 Customer c = allCustomers.get(i);
@@ -199,10 +234,10 @@ public class ECommerceSystem {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(filename))) {
             bw.write("OrderId,CustomerId,ProductIds,TotalPrice,OrderDate,Status");
             bw.newLine();
-            
             CustomLinkedList<Order> allOrders = orders.getAll();
             for (int i = 0; i < allOrders.size(); i++) {
                 Order o = allOrders.get(i);
+                // Reconstruct product IDs list "1;2;3"
                 StringBuilder pIds = new StringBuilder();
                 CustomLinkedList<Integer> ids = o.getProductIds();
                 for (int j = 0; j < ids.size(); j++) {
@@ -235,13 +270,15 @@ public class ECommerceSystem {
         } catch (IOException e) { System.out.println("Error saving reviews: " + e.getMessage()); }
     }
     
-    // ================= LOGIC METHODS ================= //
+    // ================= CORE OPERATIONS ================= //
    
+    // Adds a product to the BST. Time Complexity: O(log n)
     public void addProduct(Product product) {
         products.insert(product.getProductId(), product);
         System.out.println("Product added: " + product.getName());
     }
     
+    // Removes a product from the BST. Time Complexity: O(log n)
     public boolean removeProduct(int productId) {
         boolean deleted = products.delete(productId);
         if (deleted) System.out.println("Product removed.");
@@ -249,6 +286,7 @@ public class ECommerceSystem {
         return deleted;
     }
     
+    // Search O(log n) then update details.
     public boolean updateProduct(int productId, String newName, double newPrice, int newStock) {
         Product product = findProductById(productId);
         if (product != null) {
@@ -262,10 +300,12 @@ public class ECommerceSystem {
         return false;
     }
     
+    // Performs Binary Search on the Tree.
     public Product findProductById(int productId) {
         return products.find(productId);
     }
     
+    // Traverses all products to find those with 0 stock.
     public CustomLinkedList<Product> getOutOfStockProducts() {
         CustomLinkedList<Product> outOfStock = new CustomLinkedList<>();
         CustomLinkedList<Product> all = products.getAll();
@@ -287,6 +327,7 @@ public class ECommerceSystem {
         return customers.find(customerId);
     }
     
+    // Places order and calculates total price dynamically based on current product prices.
     public boolean placeOrder(Order order) {
         Customer customer = findCustomerById(order.getCustomerId());
         if (customer != null) {
@@ -294,14 +335,16 @@ public class ECommerceSystem {
             CustomLinkedList<Integer> pIds = order.getProductIds();
             for (int i = 0; i < pIds.size(); i++) {
                 int pid = pIds.get(i);
-                Product p = findProductById(pid);
+                Product p = findProductById(pid); // O(log n) lookup per product
                 if (p != null) {
                     calculatedTotal += p.getPrice();
                 }
             }
             order.setTotalPrice(calculatedTotal);
+            
             orders.insert(order.getOrderId(), order);
             customer.addOrder(order);
+            
             System.out.println("Order placed. Total: $" + calculatedTotal);
             return true;
         }
@@ -335,6 +378,7 @@ public class ECommerceSystem {
         return orders.find(orderId);
     }
     
+    // Validates rating range (1-5) before adding.
     public boolean addReview(int productId, int customerId, int rating, String comment) {
         if (rating < 1 || rating > 5) {
             System.out.println("Error: Rating must be between 1 and 5.");
@@ -342,7 +386,7 @@ public class ECommerceSystem {
         }
         Product product = findProductById(productId);
         if (product != null) {
-            int reviewId = reviews.size() + 1; 
+            int reviewId = reviews.size() + 1; // Simple auto-increment
             Review review = new Review(reviewId, productId, customerId, rating, comment);
             reviews.add(review);
             product.addReview(review);
@@ -378,6 +422,78 @@ public class ECommerceSystem {
         return customerReviews;
     }
     
+    // ================= ADVANCED QUERIES ================= //
+
+    // Linear search O(n) through product list to find items in range.
+    public CustomLinkedList<Product> getProductsInPriceRange(double min, double max) {
+        CustomLinkedList<Product> result = new CustomLinkedList<>();
+        CustomLinkedList<Product> all = products.getAll(); // Flatten tree to list
+        for (int i = 0; i < all.size(); i++) {
+            Product p = all.get(i);
+            if (p.getPrice() >= min && p.getPrice() <= max) {
+                result.add(p);
+            }
+        }
+        return result;
+    }
+
+    // Implements Selection Sort O(n^2) to sort customers alphabetically by name.
+    public CustomLinkedList<Customer> getCustomersSortedByName() {
+        CustomLinkedList<Customer> all = customers.getAll();
+        CustomLinkedList<Customer> sorted = new CustomLinkedList<>();
+        
+        while (!all.isEmpty()) {
+            Customer minCust = all.get(0);
+            int minIndex = 0;
+            // Find alphabetically first name
+            for (int i = 1; i < all.size(); i++) {
+                if (all.get(i).getName().compareToIgnoreCase(minCust.getName()) < 0) {
+                    minCust = all.get(i);
+                    minIndex = i;
+                }
+            }
+            sorted.add(minCust);
+            all.remove(minIndex);
+        }
+        return sorted;
+    }
+
+    // Filters reviews for a product, sorts them by rating (Selection Sort),
+    // then retrieves the associated Customer objects.
+    public CustomLinkedList<Customer> getCustomersWhoReviewedProduct(int productId) {
+        Product p = findProductById(productId);
+        CustomLinkedList<Customer> result = new CustomLinkedList<>();
+        
+        if (p == null) return result;
+        
+        CustomLinkedList<Review> prodReviews = p.getReviews();
+        CustomLinkedList<Review> tempReviews = new CustomLinkedList<>();
+        for (int i = 0; i < prodReviews.size(); i++) tempReviews.add(prodReviews.get(i));
+        
+        // Sort Reviews: High Rating -> Low Rating
+        CustomLinkedList<Review> sortedReviews = new CustomLinkedList<>();
+        while(!tempReviews.isEmpty()) {
+            Review maxRev = tempReviews.get(0);
+            int maxIdx = 0;
+            for(int i=1; i<tempReviews.size(); i++) {
+                if(tempReviews.get(i).getRating() > maxRev.getRating()) {
+                    maxRev = tempReviews.get(i);
+                    maxIdx = i;
+                }
+            }
+            sortedReviews.add(maxRev);
+            tempReviews.remove(maxIdx);
+        }
+        
+        // Fetch Customers corresponding to sorted reviews
+        for(int i=0; i<sortedReviews.size(); i++) {
+            Customer c = findCustomerById(sortedReviews.get(i).getCustomerId());
+            if(c != null) result.add(c);
+        }
+        return result;
+    }
+
+    // Calculates ratings for all products and returns top 3 using Selection Sort.
     public CustomLinkedList<Product> getTop3ProductsByRating() {
         CustomLinkedList<Product> all = products.getAll();
         CustomLinkedList<Product> rated = new CustomLinkedList<>();
@@ -385,6 +501,7 @@ public class ECommerceSystem {
             Product p = all.get(i);
             if (!p.getReviews().isEmpty()) rated.add(p);
         }
+        
         CustomLinkedList<Product> top3 = new CustomLinkedList<>();
         while (!rated.isEmpty() && top3.size() < 3) {
             Product maxP = rated.get(0);
@@ -401,6 +518,7 @@ public class ECommerceSystem {
         return top3;
     }
     
+    // Filters orders by performing String comparison on YYYY-MM-DD format.
     public CustomLinkedList<Order> getOrdersBetweenDates(String startDate, String endDate) {
         CustomLinkedList<Order> result = new CustomLinkedList<>();
         CustomLinkedList<Order> all = orders.getAll();
@@ -414,10 +532,12 @@ public class ECommerceSystem {
         return result;
     }
     
+    // Intersection algorithm: Finds products rated > 4.0 by both Customer A and Customer B.
     public CustomLinkedList<Product> getCommonHighRatedProducts(int c1, int c2) {
         CustomLinkedList<Product> common = new CustomLinkedList<>();
         CustomLinkedList<Review> r1 = getReviewsByCustomer(c1);
         CustomLinkedList<Review> r2 = getReviewsByCustomer(c2);
+        
         for (int i = 0; i < r1.size(); i++) {
             for (int j = 0; j < r2.size(); j++) {
                 if (r1.get(i).getProductId() == r2.get(j).getProductId()) {
@@ -426,6 +546,7 @@ public class ECommerceSystem {
                         boolean exists = false;
                         for(int k=0; k<common.size(); k++) 
                             if(common.get(k).getProductId() == p.getProductId()) exists = true;
+                        
                         if(!exists) common.add(p);
                     }
                 }
@@ -434,63 +555,7 @@ public class ECommerceSystem {
         return common;
     }
     
-    public CustomLinkedList<Product> getProductsInPriceRange(double min, double max) {
-        CustomLinkedList<Product> result = new CustomLinkedList<>();
-        CustomLinkedList<Product> all = products.getAll();
-        for (int i = 0; i < all.size(); i++) {
-            Product p = all.get(i);
-            if (p.getPrice() >= min && p.getPrice() <= max) {
-                result.add(p);
-            }
-        }
-        return result;
-    }
-
-    public CustomLinkedList<Customer> getCustomersSortedByName() {
-        CustomLinkedList<Customer> all = customers.getAll();
-        CustomLinkedList<Customer> sorted = new CustomLinkedList<>();
-        while (!all.isEmpty()) {
-            Customer minCust = all.get(0);
-            int minIndex = 0;
-            for (int i = 1; i < all.size(); i++) {
-                if (all.get(i).getName().compareToIgnoreCase(minCust.getName()) < 0) {
-                    minCust = all.get(i);
-                    minIndex = i;
-                }
-            }
-            sorted.add(minCust);
-            all.remove(minIndex);
-        }
-        return sorted;
-    }
-
-    public CustomLinkedList<Customer> getCustomersWhoReviewedProduct(int productId) {
-        Product p = findProductById(productId);
-        CustomLinkedList<Customer> result = new CustomLinkedList<>();
-        if (p == null) return result;
-        CustomLinkedList<Review> prodReviews = p.getReviews();
-        CustomLinkedList<Review> tempReviews = new CustomLinkedList<>();
-        for (int i = 0; i < prodReviews.size(); i++) tempReviews.add(prodReviews.get(i));
-        CustomLinkedList<Review> sortedReviews = new CustomLinkedList<>();
-        while(!tempReviews.isEmpty()) {
-            Review maxRev = tempReviews.get(0);
-            int maxIdx = 0;
-            for(int i=1; i<tempReviews.size(); i++) {
-                if(tempReviews.get(i).getRating() > maxRev.getRating()) {
-                    maxRev = tempReviews.get(i);
-                    maxIdx = i;
-                }
-            }
-            sortedReviews.add(maxRev);
-            tempReviews.remove(maxIdx);
-        }
-        for(int i=0; i<sortedReviews.size(); i++) {
-            Customer c = findCustomerById(sortedReviews.get(i).getCustomerId());
-            if(c != null) result.add(c);
-        }
-        return result;
-    }
-    
+    // Helper to print entire product list to console.
     public void displayAllProducts() {
         System.out.println("\n===== ALL PRODUCTS (Sorted by ID) =====");
         CustomLinkedList<Product> all = products.getAll();
